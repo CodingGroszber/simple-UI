@@ -23,18 +23,16 @@ pub struct HighlightChangeEvent {
 
 // UI Setup System
 pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Add a camera for UI rendering - this is critical!
     commands.spawn(Camera2dBundle::default());
 
     let content = backend::read_file("test/eng.md");
-    // Add fallback content in case file doesn't exist or is empty
     let content_to_use = if content == "Error reading file" || content.is_empty() {
         "This is default text for testing.".to_string()
     } else {
         content
     };
 
-    let words = content_to_use.split_whitespace().collect::<Vec<_>>();
+    let tokens = backend::tokenize(&content_to_use); // Replace split_whitespace
 
     let font = asset_server.load("fonts/FiraSans-Regular.ttf");
 
@@ -50,7 +48,6 @@ pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         })
         .with_children(|parent| {
-            // Spawn content node
             parent
                 .spawn((
                     NodeBundle {
@@ -67,31 +64,35 @@ pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ContentNode,
                 ))
                 .with_children(|content| {
-                    for word in words {
-                        content.spawn((
-                            TextBundle {
-                                text: Text::from_section(
-                                    format!("{} ", word), // Add space after each word
-                                    TextStyle {
-                                        font: font.clone(),
-                                        font_size: 20.0,
-                                        color: Color::WHITE,
-                                    },
-                                ),
-                                style: Style {
-                                    margin: UiRect::all(Val::Px(2.0)),
-                                    ..default()
+                    for token in tokens {
+                        let text_bundle = TextBundle {
+                            text: Text::from_section(
+                                token.text.clone(),
+                                TextStyle {
+                                    font: font.clone(),
+                                    font_size: 20.0,
+                                    color: Color::WHITE,
+                                },
+                            ),
+                            style: Style {
+                                margin: if token.is_word {
+                                    UiRect::right(Val::Px(5.0))
+                                } else {
+                                    UiRect::right(Val::Px(0.0))
                                 },
                                 ..default()
                             },
-                            Interaction::default(),
-                            Highlighted(false),
-                        ));
+                            ..default()
+                        };
+                        if token.is_word {
+                            content.spawn((text_bundle, Interaction::default(), Highlighted(false)));
+                        } else {
+                            content.spawn((text_bundle, Highlighted(false)));
+                        }
                     }
                 });
         });
 
-    // Initialize scroll offset
     commands.insert_resource(ScrollOffset(0.0));
 }
 

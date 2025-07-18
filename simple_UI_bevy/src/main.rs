@@ -2,7 +2,6 @@ use bevy::prelude::*;
 
 mod backend;
 mod frontend;
-
 use frontend::frontend::HighlightChangeEvent;
 
 fn main() {
