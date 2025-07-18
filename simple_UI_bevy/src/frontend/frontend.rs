@@ -3,15 +3,25 @@ use bevy::prelude::*;
 
 use crate::backend::backend;
 
+// Components
 #[derive(Component)]
-pub struct Highlighted(bool);
+pub struct Highlighted(pub bool);
 
 #[derive(Component)]
 pub struct ContentNode;
 
+// Resources
 #[derive(Resource)]
 pub struct ScrollOffset(pub f32);
 
+// Events
+#[derive(Event)]
+pub struct HighlightChangeEvent {
+    entity: Entity,
+    is_highlighted: bool,
+}
+
+// UI Setup System
 pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Add a camera for UI rendering - this is critical!
     commands.spawn(Camera2dBundle::default());
@@ -28,7 +38,6 @@ pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     let font = asset_server.load("fonts/FiraSans-Regular.ttf");
 
-    // Rest of your UI setup remains the same...
     commands
         .spawn(NodeBundle {
             style: Style {
@@ -86,7 +95,8 @@ pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(ScrollOffset(0.0));
 }
 
-pub fn handle_input(
+// Input handling systems
+pub fn handle_scroll_input(
     mut mouse_wheel: EventReader<MouseWheel>,
     mut scroll_offset: ResMut<ScrollOffset>,
 ) {
@@ -95,22 +105,39 @@ pub fn handle_input(
     }
 }
 
-pub fn handle_clicks(mut query: Query<(&Interaction, &mut Highlighted), Changed<Interaction>>) {
-    for (interaction, mut highlighted) in query.iter_mut() {
+pub fn handle_clicks(
+    mut query: Query<(Entity, &Interaction, &mut Highlighted), Changed<Interaction>>,
+    mut events: EventWriter<HighlightChangeEvent>,
+) {
+    for (entity, interaction, mut highlighted) in query.iter_mut() {
         if *interaction == Interaction::Pressed {
+            // Toggle highlight state
             highlighted.0 = !highlighted.0;
+
+            // Emit event when highlight state changes
+            events.send(HighlightChangeEvent {
+                entity,
+                is_highlighted: highlighted.0,
+            });
         }
     }
 }
 
-pub fn update_text_styles(mut query: Query<(&mut Text, &Highlighted)>) {
-    for (mut text, highlighted) in query.iter_mut() {
-        if let Some(section) = text.sections.first_mut() {
-            section.style.color = if highlighted.0 {
-                Color::YELLOW
-            } else {
-                Color::WHITE
-            };
+// UI update systems
+pub fn update_text_styles(
+    mut events: EventReader<HighlightChangeEvent>,
+    mut text_query: Query<&mut Text>,
+) {
+    for event in events.read() {  // Changed from .iter() to .read()
+        // Only process texts that had their highlight state changed
+        if let Ok(mut text) = text_query.get_mut(event.entity) {
+            if let Some(section) = text.sections.first_mut() {
+                section.style.color = if event.is_highlighted {
+                    Color::YELLOW
+                } else {
+                    Color::WHITE
+                };
+            }
         }
     }
 }
