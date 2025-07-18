@@ -23,8 +23,10 @@ pub struct HighlightChangeEvent {
 
 // UI Setup System
 pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // Spawn the 2D camera
     commands.spawn(Camera2dBundle::default());
 
+    // Read the Markdown file content
     let content = backend::read_file("test/eng.md");
     let content_to_use = if content == "Error reading file" || content.is_empty() {
         "This is default text for testing.".to_string()
@@ -32,10 +34,11 @@ pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         content
     };
 
-    let tokens = backend::tokenize(&content_to_use); // Replace split_whitespace
-
+    // Tokenize the content
+    let tokens = backend::tokenize(&content_to_use);
     let font = asset_server.load("fonts/FiraSans-Regular.ttf");
 
+    // Spawn the root UI node
     commands
         .spawn(NodeBundle {
             style: Style {
@@ -48,6 +51,7 @@ pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         })
         .with_children(|parent| {
+            // Spawn the content node with flex layout
             parent
                 .spawn((
                     NodeBundle {
@@ -64,35 +68,99 @@ pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ContentNode,
                 ))
                 .with_children(|content| {
+                    // Iterate through tokens and create UI elements
                     for token in tokens {
-                        let text_bundle = TextBundle {
-                            text: Text::from_section(
-                                token.text.clone(),
-                                TextStyle {
-                                    font: font.clone(),
-                                    font_size: 20.0,
-                                    color: Color::WHITE,
-                                },
-                            ),
-                            style: Style {
-                                margin: if token.is_word {
-                                    UiRect::right(Val::Px(5.0))
-                                } else {
-                                    UiRect::right(Val::Px(0.0))
-                                },
-                                ..default()
-                            },
-                            ..default()
-                        };
-                        if token.is_word {
-                            content.spawn((text_bundle, Interaction::default(), Highlighted(false)));
-                        } else {
-                            content.spawn((text_bundle, Highlighted(false)));
+                        match token.token_type {
+                            backend::TokenType::Word => {
+                                content.spawn((
+                                    TextBundle {
+                                        text: Text::from_section(
+                                            token.text.clone(),
+                                            TextStyle {
+                                                font: font.clone(),
+                                                font_size: 20.0,
+                                                color: Color::WHITE,
+                                            },
+                                        ),
+                                        style: Style {
+                                            margin: UiRect::all(Val::Px(0.0)),
+                                            ..default()
+                                        },
+                                        ..default()
+                                    },
+                                    Interaction::default(),
+                                    Highlighted(false),
+                                ));
+                            }
+                            backend::TokenType::Punctuation => {
+                                content.spawn(TextBundle {
+                                    text: Text::from_section(
+                                        token.text.clone(),
+                                        TextStyle {
+                                            font: font.clone(),
+                                            font_size: 20.0,
+                                            color: Color::WHITE,
+                                        },
+                                    ),
+                                    style: Style {
+                                        margin: UiRect::all(Val::Px(0.0)),
+                                        ..default()
+                                    },
+                                    ..default()
+                                });
+                            }
+                            backend::TokenType::Space => {
+                                content.spawn(TextBundle {
+                                    text: Text::from_section(
+                                        token.text.clone(), // e.g., "  " for multiple spaces
+                                        TextStyle {
+                                            font: font.clone(),
+                                            font_size: 20.0,
+                                            color: Color::WHITE,
+                                        },
+                                    ),
+                                    style: Style {
+                                        margin: UiRect::all(Val::Px(0.0)),
+                                        ..default()
+                                    },
+                                    ..default()
+                                });
+                            }
+                            backend::TokenType::Tab => {
+                                content.spawn(TextBundle {
+                                    text: Text::from_section(
+                                        "    ".to_string(), // Replace tab with 4 spaces
+                                        TextStyle {
+                                            font: font.clone(),
+                                            font_size: 20.0,
+                                            color: Color::WHITE,
+                                        },
+                                    ),
+                                    style: Style {
+                                        margin: UiRect::all(Val::Px(0.0)),
+                                        ..default()
+                                    },
+                                    ..default()
+                                });
+                            }
+                            backend::TokenType::Newline => {
+                                content.spawn(NodeBundle {
+                                    style: Style {
+                                        width: Val::Percent(100.0),
+                                        height: Val::Px(0.0),
+                                        ..default()
+                                    },
+                                    ..default()
+                                });
+                            }
+                            // Skip Markdown-specific tokens (e.g., MarkdownHeader, MarkdownBold)
+                            _ => {}
                         }
                     }
                 });
         });
 
+    // Initialize scroll offset resource
     commands.insert_resource(ScrollOffset(0.0));
 }
 
